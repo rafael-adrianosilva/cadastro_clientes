@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:gerenciador_clientes/modelos/cliente.dart'; // importa nosso modelo de BD
+import 'package:gerenciador_clientes/modelos/cliente.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // importa nosso modelo de BD
 
 //instanciando nosso BD
-final GerenciadorClientes gerenciadorClientes = GerenciadorClientes();
+final ServicoClientes servicoClientes = ServicoClientes();
 
-void main(){
-  gerenciadorClientes.cadastrar(
-    Cliente(nome: 'Admin', email: 'admin@email.com', senha: 'admin'),
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Garante que o Flutter está pronto.
+
+  // Inicializa o Firebase (OBRIGATÓRIO).
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const AplicativoClientes());
 }
 
@@ -62,32 +68,38 @@ class TelaPrincipal extends StatelessWidget{
 child: Padding(
 padding: const EdgeInsets.all(16.0),
 child: Column(
-mainAxisAlignment: MainAxisAlignment.center,
-children: [
-const Icon(Icons.check_circle_outline, size: 80, color: Colors.indigo),
-const SizedBox(height: 20),
-Text('Login de ${cliente.nome} realizado!', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-const SizedBox(height: 8),
-Text('E-mail: ${cliente.email}', style: const TextStyle(fontSize: 18, color: Colors.grey)),
-const SizedBox(height: 40),
-// Título da lista de clientes
-const Text('Clientes cadastrados (BD Simulado):', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-const SizedBox(height: 10),
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: [
+    // ...coisas do seu código
+    const Text('Clientes cadastrados (BD Firebase):', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    const SizedBox(height: 10),
+    // Lista de Clientes conectada ao Firebase
 // Lista de Clientes Cadastrados
-Expanded(
-// Usa o getter 'clientes' do nosso gerenciador.
-child: ListView.builder(
-itemCount: gerenciadorClientes.clientes.length,
-itemBuilder: (context, index) {
-final c = gerenciadorClientes.clientes[index];
-return ListTile(
-leading: const Icon(Icons.person),
-title: Text(c.nome),
-subtitle: Text(c.email),
-                    );
-                  },
-                ),
-              ),
+StreamBuilder<List<Cliente>>(
+  stream: servicoClientes.clientesStream,
+  builder: (context, snapshot) {
+    if (snapshot.hasError) {
+      return const Text('Erro ao carregar clientes.');
+    }
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final clientes = snapshot.data ?? [];
+    return Expanded(
+      child: ListView.builder(
+        itemCount: clientes.length,
+        itemBuilder: (context, index) {
+          final c = clientes[index];
+          return ListTile(
+            leading: const Icon(Icons.person),
+            title: Text(c.nome),
+            subtitle: Text(c.email),
+          );
+        },
+      ),
+    );
+  },
+),
             ],
           ),
         ),
@@ -110,33 +122,34 @@ class _EstadoTelaLogin extends State<TelaLogin> {
   final _senhaController = TextEditingController();
   String _mensagemErro = '';
 
-  void _fazerLogin() {
-    // 1. Validação dos campos
-    if (_chaveForm.currentState!.validate()) {
-      setState(() => _mensagemErro = ''); // Limpa erro.
+  void _fazerLogin() async { // AGORA É ASYNC
+  // Valida os campos... (código omitido, mas continua o mesmo)
 
-      final email = _emailController.text.trim();
-      final senha = _senhaController.text;
+  if (_chaveForm.currentState!.validate()) {
+    setState(() => _mensagemErro = '');
 
-      // 2. Chama o método 'login' do nosso BD simulado.
-      final clienteLogado = gerenciadorClientes.login(email, senha);
+    final email = _emailController.text.trim();
+    final senha = _senhaController.text;
 
-      if (clienteLogado != null) {
-        // 3. Login de sucesso: Navega para a tela principal (substituindo o Login).
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => TelaPrincipal(cliente: clienteLogado),
-          ),
-        );
-      } else {
-        // 4. Login falhou.
-        setState(() {
-          _mensagemErro = 'E-mail ou senha incorretos.';
-        });
-      }
+    // CHAMA O SERVIÇO FIREBASE e AGUARDA O RESULTADO
+    final clienteLogado = await servicoClientes.login(email, senha); // <-- AWAIT AQUI!
+
+    if (clienteLogado != null) {
+      // Se sucesso, navega...
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TelaPrincipal(cliente: clienteLogado),
+        ),
+      );
+    } else {
+      // Login falhou...
+      setState(() {
+        _mensagemErro = 'E-mail ou senha incorretos.';
+      });
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -228,31 +241,33 @@ class _EstadoTelaCadastro extends State<TelaCadastro> {
   final _senhaController = TextEditingController();
   String _mensagemErro = '';
 
-  void _fazerCadastro() {
-    if (_chaveForm.currentState!.validate()) { // Se a validação dos campos for OK...
-      final novoCliente = Cliente(
-        nome: _nomeController.text.trim(),
-        email: _emailController.text.trim(),
-        senha: _senhaController.text,
+  void _fazerCadastro() async { // AGORA É ASYNC
+  if (_chaveForm.currentState!.validate()) {
+    setState(() => _mensagemErro = '');
+
+    final novoCliente = Cliente(
+      nome: _nomeController.text.trim(),
+      email: _emailController.text.trim(),
+      senha: _senhaController.text,
+    );
+
+    // CHAMA O SERVIÇO FIREBASE e AGUARDA O RESULTADO
+    final sucesso = await servicoClientes.cadastrar(novoCliente); // <-- AWAIT AQUI!
+
+    if (sucesso) {
+      // Se sucesso: exibe mensagem e volta para a tela de Login.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Cadastro realizado com sucesso!')),
       );
-
-      // Tenta cadastrar no BD simulado.
-      final sucesso = gerenciadorClientes.cadastrar(novoCliente);
-
-      if (sucesso) {
-        // Se sucesso: exibe uma notificação e volta para a tela de Login.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Cadastro realizado com sucesso!')),
-        );
-        Navigator.pop(context); // Volta para a TelaLogin.
-      } else {
-        // Se falhar (e-mail duplicado).
-        setState(() {
-          _mensagemErro = 'E-mail já cadastrado. Tente outro!';
-        });
-      }
+      Navigator.pop(context);
+    } else {
+      // Se falhar (e-mail duplicado).
+      setState(() {
+        _mensagemErro = 'E-mail já cadastrado. Tente outro!';
+      });
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

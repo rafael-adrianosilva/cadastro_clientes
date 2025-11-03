@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "425485723417",
+    "project_id": "parafalbd",
+    "storage_bucket": "parafalbd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:425485723417:android:d0dbec29773b248ddd0788",
+        "android_client_info": {
+          "package_name": "com.example.gerenciador_clientes"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9E4LV1e_mIHvWOiWv-s6wgiKGMZTK3nM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
